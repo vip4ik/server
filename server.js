@@ -58,7 +58,7 @@ io.on('connection', (socket) => {
 });
 
 // Используем порт из переменной окружения или 5504 по умолчанию
-const PORT = process.env.PORT || 5504;
+const PORT = process.env.PORT || 10000;
 
 // Запуск сервера
 server.listen(PORT, () => {
