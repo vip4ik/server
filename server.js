@@ -13,7 +13,7 @@ const io = new Server(server, {
     },
 });
 
-// Добавьте ваш код сюда
+// Хранение подключенных пользователей и очереди ожидания
 const users = new Set(); // Хранение подключенных пользователей
 const waitingUsers = []; // Очередь пользователей, ожидающих партнера
 
@@ -22,7 +22,7 @@ io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
     users.add(socket.id);
 
-    // Поиск пары для чата
+    // Поиск партнера для чата
     socket.on('find-partner', () => {
         if (waitingUsers.length >= 1) {
             // Если есть пользователь в очереди, соединяем их
@@ -36,6 +36,16 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Обработка сигналов WebRTC
+    socket.on('signal', (data) => {
+        const { to, signal } = data;
+        if (users.has(to)) {
+            io.to(to).emit('signal', { from: socket.id, signal });
+        } else {
+            socket.emit('error', { message: 'Партнер отключился или не найден' });
+        }
+    });
+
     // Обработка отключения пользователя
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
@@ -46,6 +56,9 @@ io.on('connection', (socket) => {
         if (index !== -1) {
             waitingUsers.splice(index, 1);
         }
+
+        // Уведомляем партнера о разрыве соединения
+        socket.broadcast.emit('partner-disconnected', { partnerId: socket.id });
     });
 });
 
