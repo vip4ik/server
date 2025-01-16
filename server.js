@@ -13,6 +13,7 @@ const io = new Server(server, {
     },
 });
 
+// Добавьте ваш код сюда
 const users = new Set(); // Хранение подключенных пользователей
 const waitingUsers = []; // Очередь пользователей, ожидающих партнера
 
@@ -20,34 +21,6 @@ const waitingUsers = []; // Очередь пользователей, ожид�
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
     users.add(socket.id);
-
-    // Уведомляем всех о новом подключении
-    io.emit('user-connected', socket.id);
-
-    // Обработка сигналов WebRTC
-    socket.on('signal', (data) => {
-        const { to, signal } = data;
-        if (!to || !users.has(to)) {
-            socket.emit('error', { message: 'Партнер отключился или не найден' });
-            return;
-        }
-        io.to(to).emit('signal', { from: socket.id, signal });
-    });
-
-    // Обработка отключения пользователя
-    socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
-        if (users.has(socket.id)) {
-            users.delete(socket.id);
-            io.emit('user-disconnected', socket.id);
-
-            // Удаляем пользователя из очереди ожидания
-            const index = waitingUsers.indexOf(socket.id);
-            if (index !== -1) {
-                waitingUsers.splice(index, 1);
-            }
-        }
-    });
 
     // Поиск пары для чата
     socket.on('find-partner', () => {
@@ -63,14 +36,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Остановка чата
-    socket.on('stop-chat', () => {
-        io.emit('chat-stopped', { userId: socket.id });
-    });
+    // Обработка отключения пользователя
+    socket.on('disconnect', () => {
+        console.log(`User disconnected: ${socket.id}`);
+        users.delete(socket.id);
 
-    // Обработка ошибок
-    socket.on('error', (error) => {
-        console.error('Socket error:', error);
+        // Удаляем пользователя из очереди ожидания
+        const index = waitingUsers.indexOf(socket.id);
+        if (index !== -1) {
+            waitingUsers.splice(index, 1);
+        }
     });
 });
 
@@ -80,21 +55,4 @@ const PORT = process.env.PORT || 10000;
 // Запуск сервера
 server.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
-});
-
-// Обработка завершения работы
-process.on('SIGTERM', () => {
-    console.log('Server is shutting down...');
-    server.close(() => {
-        console.log('Server has been terminated.');
-        process.exit(0);
-    });
-});
-
-process.on('SIGINT', () => {
-    console.log('Server is shutting down...');
-    server.close(() => {
-        console.log('Server has been terminated.');
-        process.exit(0);
-    });
 });
