@@ -14,6 +14,7 @@ const io = new Server(server, {
 });
 
 const users = new Set(); // Хранение подключенных пользователей
+const waitingUsers = []; // Очередь пользователей, ожидающих партнера
 
 // Обработка подключений
 io.on('connection', (socket) => {
@@ -39,18 +40,27 @@ io.on('connection', (socket) => {
         if (users.has(socket.id)) {
             users.delete(socket.id);
             io.emit('user-disconnected', socket.id);
+
+            // Удаляем пользователя из очереди ожидания
+            const index = waitingUsers.indexOf(socket.id);
+            if (index !== -1) {
+                waitingUsers.splice(index, 1);
+            }
         }
     });
 
     // Поиск пары для чата
     socket.on('find-partner', () => {
-        if (users.size < 2) {
-            socket.emit('error', { message: 'Ожидайте подключения партнера' });
-            return;
+        if (waitingUsers.length >= 1) {
+            // Если есть пользователь в очереди, соединяем их
+            const partnerId = waitingUsers.shift(); // Берем первого пользователя из очереди
+            io.to(socket.id).emit('partner-found', { partnerId });
+            io.to(partnerId).emit('partner-found', { partnerId: socket.id });
+        } else {
+            // Если нет пользователей в очереди, добавляем текущего пользователя
+            waitingUsers.push(socket.id);
+            socket.emit('status', { message: 'Ожидайте подключения партнера' });
         }
-        const [user1, user2] = Array.from(users).slice(-2); // Берем последних двух пользователей
-        io.to(user1).emit('partner-found', { partnerId: user2 });
-        io.to(user2).emit('partner-found', { partnerId: user1 });
     });
 
     // Остановка чата
