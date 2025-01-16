@@ -4,6 +4,8 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
+
+// Настройка CORS для Socket.IO
 const io = new Server(server, {
     cors: {
         origin: '*', // Разрешить все источники (для тестирования)
@@ -13,6 +15,7 @@ const io = new Server(server, {
 
 const users = new Set(); // Хранение подключенных пользователей
 
+// Обработка подключений
 io.on('connection', (socket) => {
     console.log(`User connected: ${socket.id}`);
     users.add(socket.id);
@@ -54,7 +57,19 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = 5504;
+// Используем порт из переменной окружения или 5504 по умолчанию
+const PORT = process.env.PORT || 5504;
+
+// Запуск сервера
 server.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
+});
+
+// Обработка завершения работы
+process.on('SIGTERM', () => {
+    console.log('Server is shutting down...');
+    server.close(() => {
+        console.log('Server has been terminated.');
+        process.exit(0);
+    });
 });
