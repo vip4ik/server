@@ -4,8 +4,6 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-
-// Настройка CORS для Socket.IO
 const io = new Server(server, {
     cors: {
         origin: '*', // Разрешить все источники (для тестирования)
@@ -13,28 +11,15 @@ const io = new Server(server, {
     },
 });
 
-// Хранение подключенных пользователей и очереди ожидания
 const users = new Set(); // Хранение подключенных пользователей
-const waitingUsers = []; // Очередь пользователей, ожидающих партнера
 
-// Обработка подключений
-io.on('connection', (socket) => {
+// Обработка подключения нового пользователя
+const handleConnection = (socket) => {
     console.log(`User connected: ${socket.id}`);
     users.add(socket.id);
 
-    // Поиск партнера для чата
-    socket.on('find-partner', () => {
-        if (waitingUsers.length >= 1) {
-            // Если есть пользователь в очереди, соединяем их
-            const partnerId = waitingUsers.shift(); // Берем первого пользователя из очереди
-            io.to(socket.id).emit('partner-found', { partnerId });
-            io.to(partnerId).emit('partner-found', { partnerId: socket.id });
-        } else {
-            // Если нет пользователей в очереди, добавляем текущего пользователя
-            waitingUsers.push(socket.id);
-            socket.emit('status', { message: 'Ожидайте подключения партнера' });
-        }
-    });
+    // Уведомляем всех о новом подключении
+    io.emit('user-connected', socket.id);
 
     // Обработка сигналов WebRTC
     socket.on('signal', (data) => {
@@ -42,30 +27,53 @@ io.on('connection', (socket) => {
         if (users.has(to)) {
             io.to(to).emit('signal', { from: socket.id, signal });
         } else {
-            socket.emit('error', { message: 'Партнер отключился или не найден' });
+            socket.emit('error', { message: 'Партнер отключился' });
         }
     });
 
     // Обработка отключения пользователя
     socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
-        users.delete(socket.id);
-
-        // Удаляем пользователя из очереди ожидания
-        const index = waitingUsers.indexOf(socket.id);
-        if (index !== -1) {
-            waitingUsers.splice(index, 1);
-        }
-
-        // Уведомляем партнера о разрыве соединения
-        socket.broadcast.emit('partner-disconnected', { partnerId: socket.id });
+        handleDisconnect(socket);
     });
-});
 
-// Используем порт из переменной окружения или 10000 по умолчанию
-const PORT = process.env.PORT || 10000;
+    // Поиск пары для чата
+    socket.on('find-partner', () => {
+        findPartner(socket);
+    });
 
-// Запуск сервера
+    // Остановка чата
+    socket.on('stop-chat', () => {
+        stopChat(socket);
+    });
+};
+
+// Обработка отключения пользователя
+const handleDisconnect = (socket) => {
+    console.log(`User disconnected: ${socket.id}`);
+    users.delete(socket.id);
+    io.emit('user-disconnected', socket.id);
+};
+
+// Поиск пары для чата
+const findPartner = (socket) => {
+    if (users.size >= 2) {
+        const [user1, user2] = Array.from(users).slice(-2); // Берем последних двух пользователей
+        io.to(user1).emit('partner-found', { partnerId: user2 });
+        io.to(user2).emit('partner-found', { partnerId: user1 });
+    } else {
+        socket.emit('error', { message: 'Ожидайте подключения партнера' });
+    }
+};
+
+// Остановка чата
+const stopChat = (socket) => {
+    io.emit('chat-stopped', { userId: socket.id });
+};
+
+// Инициализация подключения
+io.on('connection', handleConnection);
+
+const PORT = 10000;
 server.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
