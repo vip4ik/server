@@ -26,34 +26,41 @@ io.on('connection', (socket) => {
     // Обработка сигналов WebRTC
     socket.on('signal', (data) => {
         const { to, signal } = data;
-        if (users.has(to)) {
-            io.to(to).emit('signal', { from: socket.id, signal });
-        } else {
-            socket.emit('error', { message: 'Партнер отключился' });
+        if (!to || !users.has(to)) {
+            socket.emit('error', { message: 'Партнер отключился или не найден' });
+            return;
         }
+        io.to(to).emit('signal', { from: socket.id, signal });
     });
 
     // Обработка отключения пользователя
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
-        users.delete(socket.id);
-        io.emit('user-disconnected', socket.id);
+        if (users.has(socket.id)) {
+            users.delete(socket.id);
+            io.emit('user-disconnected', socket.id);
+        }
     });
 
     // Поиск пары для чата
     socket.on('find-partner', () => {
-        if (users.size >= 2) {
-            const [user1, user2] = Array.from(users).slice(-2); // Берем последних двух пользователей
-            io.to(user1).emit('partner-found', { partnerId: user2 });
-            io.to(user2).emit('partner-found', { partnerId: user1 });
-        } else {
+        if (users.size < 2) {
             socket.emit('error', { message: 'Ожидайте подключения партнера' });
+            return;
         }
+        const [user1, user2] = Array.from(users).slice(-2); // Берем последних двух пользователей
+        io.to(user1).emit('partner-found', { partnerId: user2 });
+        io.to(user2).emit('partner-found', { partnerId: user1 });
     });
 
     // Остановка чата
     socket.on('stop-chat', () => {
         io.emit('chat-stopped', { userId: socket.id });
+    });
+
+    // Обработка ошибок
+    socket.on('error', (error) => {
+        console.error('Socket error:', error);
     });
 });
 
@@ -67,6 +74,14 @@ server.listen(PORT, () => {
 
 // Обработка завершения работы
 process.on('SIGTERM', () => {
+    console.log('Server is shutting down...');
+    server.close(() => {
+        console.log('Server has been terminated.');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
     console.log('Server is shutting down...');
     server.close(() => {
         console.log('Server has been terminated.');
