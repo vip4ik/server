@@ -8,6 +8,7 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 // Конфигурация
+const HOST = '51.68.148.218'; // Слушаем все интерфейсы
 const PORT = process.env.PORT || 10000;
 
 // Хранилище данных
@@ -281,6 +282,7 @@ function createPair(user1, user2) {
 }
 
 // Запуск сервера
-server.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+server.listen(PORT, HOST, () => {
+    console.log(`Сервер запущен на http://${HOST}:${PORT}`);
+    console.log(`Для внешнего подключения используйте ws://ваш_публичный_ip:${PORT}`);
 });
